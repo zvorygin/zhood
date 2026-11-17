@@ -74,11 +74,6 @@ zhood:
   panel_uart_id: uart_panel
   # A frame ends when a side has been silent this long.
   frame_gap: 20ms
-  # Inject Payload / Direction / Mode / Count entities and an Inject button, for
-  # protocol experiments. They start disabled in Home Assistant: enable them on
-  # the device page. Payload is up to 13 hex bytes (e.g. "01 04 00 03"); the CD
-  # start, checksum and DE end are added for you.
-  inject: {}
   # Controlled by sending the remote's key codes to the panel, so the panel's
   # display stays in sync. State always comes from the panel's own frames.
   fan:

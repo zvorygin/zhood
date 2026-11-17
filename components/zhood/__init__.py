@@ -4,104 +4,33 @@ The ESP32 sits on both UART lines: every byte from one side is written to the
 other side unchanged, and the traffic is logged one frame per line. A frame
 ends when a side stays silent for `frame_gap`.
 
-With `inject:` set, Home Assistant gets a payload field, direction and mode
-selects, a count and a button that sends `CD <payload> <checksum> DE` to the
-chosen side.
+The optional fan and light entities control the hood by sending the remote
+control's key codes to the panel, and read its state from the panel's frames.
 """
 
 import esphome.codegen as cg
-from esphome.components import button, fan, light, number, select, text, uart
+from esphome.components import fan, light, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DISABLED_BY_DEFAULT,
-    CONF_ID,
-    CONF_OUTPUT_ID,
-    ENTITY_CATEGORY_CONFIG,
-)
+from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@zvorygin"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["button", "fan", "light", "number", "select", "text"]
+AUTO_LOAD = ["fan", "light"]
 MULTI_CONF = False
 
 CONF_BOARD_UART_ID = "board_uart_id"
 CONF_PANEL_UART_ID = "panel_uart_id"
 CONF_FRAME_GAP = "frame_gap"
-CONF_INJECT = "inject"
 CONF_FAN = "fan"
 CONF_LIGHT = "light"
-CONF_PAYLOAD = "payload"
-CONF_DIRECTION = "direction"
-CONF_MODE = "mode"
-CONF_COUNT = "count"
-CONF_BUTTON = "button"
-
-# Order must match InjectDirection and InjectMode in zhood.h.
-DIRECTION_OPTIONS = ["To panel", "To board"]
-MODE_OPTIONS = ["Replace next frame", "Extra frame"]
-MAX_INJECT_COUNT = 100
-# Room for a whole pasted frame: 16 bytes as "CD 00 ..." is 47 characters.
-MAX_PAYLOAD_TEXT = 64
 
 BAUD_RATE = 4800
 
 zhood_ns = cg.esphome_ns.namespace("zhood")
 ZhoodComponent = zhood_ns.class_("ZhoodComponent", cg.Component)
-ZhoodInjectButton = zhood_ns.class_("ZhoodInjectButton", button.Button)
-ZhoodPayloadText = zhood_ns.class_("ZhoodPayloadText", text.Text)
-ZhoodSelect = zhood_ns.class_("ZhoodSelect", select.Select)
-ZhoodNumber = zhood_ns.class_("ZhoodNumber", number.Number)
 ZhoodFan = zhood_ns.class_("ZhoodFan", fan.Fan)
 ZhoodLight = zhood_ns.class_("ZhoodLight", light.LightOutput)
-
-def _hidden(schema: cv.Schema) -> cv.Schema:
-    """Disabled in Home Assistant until enabled there, and kept in the device's Configuration section."""
-    return schema.extend(
-        {cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean}
-    )
-
-
-INJECT_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_PAYLOAD, default={"name": "Inject Payload"}): _hidden(
-            text.text_schema(
-                ZhoodPayloadText,
-                icon="mdi:code-brackets",
-                mode="TEXT",
-                entity_category=ENTITY_CATEGORY_CONFIG,
-            )
-        ),
-        cv.Optional(CONF_DIRECTION, default={"name": "Inject Direction"}): _hidden(
-            select.select_schema(
-                ZhoodSelect,
-                icon="mdi:swap-horizontal",
-                entity_category=ENTITY_CATEGORY_CONFIG,
-            )
-        ),
-        cv.Optional(CONF_MODE, default={"name": "Inject Mode"}): _hidden(
-            select.select_schema(
-                ZhoodSelect,
-                icon="mdi:swap-vertical",
-                entity_category=ENTITY_CATEGORY_CONFIG,
-            )
-        ),
-        cv.Optional(
-            CONF_COUNT, default={"name": "Inject Count", "mode": "BOX"}
-        ): _hidden(
-            number.number_schema(
-                ZhoodNumber, icon="mdi:counter", entity_category=ENTITY_CATEGORY_CONFIG
-            )
-        ),
-        cv.Optional(CONF_BUTTON, default={"name": "Inject"}): _hidden(
-            button.button_schema(
-                ZhoodInjectButton,
-                icon="mdi:send",
-                entity_category=ENTITY_CATEGORY_CONFIG,
-            )
-        ),
-    }
-)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -111,7 +40,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_FRAME_GAP, default="20ms"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_INJECT): INJECT_SCHEMA,
         # The hood's own state is read from the panel; nothing is restored at boot.
         cv.Optional(CONF_FAN): fan.fan_schema(
             ZhoodFan, icon="mdi:fan", default_restore_mode="NO_RESTORE"
@@ -160,20 +88,6 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_ID], board, panel, config[CONF_FRAME_GAP].total_milliseconds
     )
     await cg.register_component(var, config)
-
-    if (inject := config.get(CONF_INJECT)) is not None:
-        payload = await text.new_text(inject[CONF_PAYLOAD], max_length=MAX_PAYLOAD_TEXT)
-        cg.add(var.set_payload_text(payload))
-        direction = await select.new_select(inject[CONF_DIRECTION], options=DIRECTION_OPTIONS)
-        cg.add(var.set_direction_select(direction))
-        mode = await select.new_select(inject[CONF_MODE], options=MODE_OPTIONS)
-        cg.add(var.set_mode_select(mode))
-        count = await number.new_number(
-            inject[CONF_COUNT], min_value=1, max_value=MAX_INJECT_COUNT, step=1
-        )
-        cg.add(var.set_count_number(count))
-        inject_btn = await button.new_button(inject[CONF_BUTTON])
-        cg.add(inject_btn.set_parent(var))
 
     if (fan_config := config.get(CONF_FAN)) is not None:
         fan_var = await fan.new_fan(fan_config)
