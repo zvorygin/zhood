@@ -25,8 +25,11 @@ static constexpr uint8_t PANEL_FRAME_TYPE = 0x04;
 
 void ZhoodComponent::setup() {
   // Drop whatever arrived before the proxy started, so the first logged frame is a whole one.
-  this->board_to_panel_.from.discard_available();
-  this->panel_to_board_.from.discard_available();
+  uint8_t byte;
+  while (this->board_to_panel_.from.available() > 0 && this->board_to_panel_.from.read_byte(&byte)) {
+  }
+  while (this->panel_to_board_.from.available() > 0 && this->panel_to_board_.from.read_byte(&byte)) {
+  }
 }
 
 void ZhoodComponent::loop() {
@@ -36,23 +39,28 @@ void ZhoodComponent::loop() {
 }
 
 void ZhoodComponent::forward_(ZhoodLink &link, uint32_t now) {
-  if (link.from.available() > 0) {
+  size_t available = link.from.available();
+  if (available > 0) {
     // A new real frame starts while a replacement is pending: send ours instead and drop the real one.
     if (link.frame_len == 0 && !link.dropping && link.inject_remaining > 0) {
       link.dropping = true;
       this->send_injected_(link);
     }
-    link.from.read_available_chunks([this, &link](const uint8_t *data, size_t len) {
+    uint8_t chunk[FRAME_LEN];
+    while (available > 0) {
+      const size_t len = std::min(available, sizeof(chunk));
+      if (!link.from.read_array(chunk, len))
+        break;
+      available -= len;
       // Pass through first, so logging never delays the hood's own traffic.
       if (!link.dropping)
-        link.to.write_array(data, len);
+        link.to.write_array(chunk, len);
       for (size_t i = 0; i < len; i++) {
-        link.frame[link.frame_len++] = data[i];
+        link.frame[link.frame_len++] = chunk[i];
         if (link.frame_len == link.frame.size())
           this->log_frame_(link);
       }
-      return true;
-    });
+    }
     link.last_rx_ms = now;
     return;
   }
