@@ -1,0 +1,87 @@
+# Example device using the zhood component.
+# Logs reach Home Assistant / `esphome logs` through the native API.
+esphome:
+  name: zhood-test
+
+# Olimex ESP32-POE-ISO (classic ESP32, 4 MB flash). Power it from PoE or USB.
+esp32:
+  variant: esp32
+  flash_size: 4MB
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [zhood]
+
+# Wired network with DHCP (the default when no manual_ip is set).
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk:
+    pin: GPIO17
+    mode: CLK_OUT
+  phy_addr: 0
+  # Turns on the Ethernet chip's power on this board.
+  power_pin: GPIO12
+
+# Native API: also streams the device logs to any connected client.
+api:
+
+# Web page at http://zhood-test.local with the entities, live logs and a
+# firmware upload form (use firmware.ota.bin from the build folder).
+web_server:
+  port: 80
+  version: 3
+
+ota:
+  # Upload form on the web page.
+  - platform: web_server
+  # Lets `esphome run` / `esphome upload` flash over the network.
+  - platform: esphome
+
+logger:
+  level: VERY_VERBOSE
+  # Logs go to API clients and to the USB port (UART0, for debugging boot
+  # issues). Set baud_rate: 0 to send them to API clients only.
+
+# Both data lines between the hood's main board and control panel are cut,
+# and the ESP32 sits in the middle. Connect GND of all three together.
+#   board TX -> GPIO36   GPIO33 -> panel RX
+#   board RX <- GPIO4    GPIO32 <- panel TX
+# Tap the lines on the 3.3 V side of the hood's level shifter.
+# On this board GPIO6-11 belong to the flash chip and GPIO12/17/18/23 to
+# Ethernet; GPIO36 is input only, which is fine for RX.
+uart:
+  - id: uart_board
+    rx_pin: GPIO36
+    tx_pin: GPIO4
+    baud_rate: 4800
+    parity: NONE
+    stop_bits: 1
+  - id: uart_panel
+    rx_pin: GPIO32
+    tx_pin: GPIO33
+    baud_rate: 4800
+    parity: NONE
+    stop_bits: 1
+
+zhood:
+  board_uart_id: uart_board
+  panel_uart_id: uart_panel
+  # A frame ends when a side has been silent this long.
+  frame_gap: 20ms
+  # Inject Payload / Direction / Mode / Count entities and an Inject button, for
+  # protocol experiments. They start disabled in Home Assistant: enable them on
+  # the device page. Payload is up to 13 hex bytes (e.g. "01 04 00 03"); the CD
+  # start, checksum and DE end are added for you.
+  inject: {}
+  # Controlled by sending the remote's key codes to the panel, so the panel's
+  # display stays in sync. State always comes from the panel's own frames.
+  fan:
+    name: "Fan"
+  light:
+    name: "Light"
