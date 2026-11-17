@@ -10,10 +10,13 @@ esp32:
   framework:
     type: esp-idf
 
+# The zhood component, fetched from GitHub (the components/ folder on main).
+# For local development, use instead:
+#   - source:
+#       type: local
+#       path: components
 external_components:
-  - source:
-      type: local
-      path: components
+  - source: github://zvorygin/zhood@main
     components: [zhood]
 
 # Wired network with DHCP (the default when no manual_ip is set).
