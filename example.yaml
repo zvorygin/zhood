@@ -47,7 +47,9 @@ ota:
   - platform: esphome
 
 logger:
-  level: VERY_VERBOSE
+  # INFO: one line per finished fan/light command, plus warnings.
+  # Use DEBUG to see every frame on both lines (about 10 per second).
+  level: INFO
   # Logs go to API clients and to the USB port (UART0, for debugging boot
   # issues). Set baud_rate: 0 to send them to API clients only.
 

@@ -76,7 +76,7 @@ void ZhoodComponent::send_injected_(ZhoodLink &link) {
 
   char hex[format_hex_pretty_size(FRAME_LEN)];
   format_hex_pretty_to(hex, link.inject_frame.data(), link.inject_frame.size(), ' ');
-  ESP_LOGI(TAG, "key>panel (%u): %s  [%" PRIu32 " left]", static_cast<unsigned>(FRAME_LEN), hex,
+  ESP_LOGD(TAG, "key>panel (%u): %s  [%" PRIu32 " left]", static_cast<unsigned>(FRAME_LEN), hex,
            link.inject_remaining);
 }
 
